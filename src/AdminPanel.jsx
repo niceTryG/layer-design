@@ -8,7 +8,7 @@ import {
   SiYoutube,
 } from 'react-icons/si';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const BACKEND_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 const toImageUrl = (src) => {
@@ -184,6 +184,7 @@ const ADMIN_I18N = {
       infoUpdated: 'Aloqa elementi yangilandi',
       infoDeleted: 'Aloqa elementi ochirildi',
       infoDeleteFail: 'Aloqa elementini ochirishda xatolik',
+      sessionExpired: 'Sessiya tugadi. Qayta kiring.',
       genericError: 'Xatolik yuz berdi',
     },
   },
@@ -354,6 +355,7 @@ const ADMIN_I18N = {
       infoUpdated: 'Контактный элемент обновлен',
       infoDeleted: 'Контактный элемент удален',
       infoDeleteFail: 'Ошибка удаления контактного элемента',
+      sessionExpired: 'Сессия истекла. Войдите снова.',
       genericError: 'Произошла ошибка',
     },
   },
@@ -377,14 +379,25 @@ const SOCIAL_PRESETS = [
 ];
 
 export default function AdminPanel({ token, onLogout, onSessionExpired = onLogout, lang = 'uz', setLang = () => {} }) {
-  const authFetch = (url, options = {}) =>
-    fetch(url, {
+  const authFetch = async (url, options = {}) => {
+    const res = await fetch(url, {
       ...options,
-      headers: { ...options.headers, Authorization: `Bearer ${token}` },
-    }).then((res) => {
-      if (res.status === 401) onSessionExpired();
-      return res;
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
     });
+
+    if (res.status === 401) {
+      showMessage(
+        (ADMIN_I18N[lang] || ADMIN_I18N.uz).messages.sessionExpired,
+        'error'
+      );
+      onSessionExpired();
+    }
+
+    return res;
+  };
 
   const t = ADMIN_I18N[lang] || ADMIN_I18N.uz;
 
@@ -422,6 +435,15 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
     setMessage({ text, type });
     window.clearTimeout(showMessage._timer);
     showMessage._timer = window.setTimeout(() => setMessage({ text: '', type: 'success' }), 2800);
+  };
+
+  const readErrorMessage = async (res, fallback) => {
+    try {
+      const data = await res.json();
+      return data?.error || fallback;
+    } catch {
+      return fallback;
+    }
   };
 
   const loadAllData = async () => {
@@ -527,7 +549,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadAllData();
         showMessage(editingProjectId ? t.messages.projectUpdated : t.messages.projectAdded, 'success');
       } else {
-        showMessage(t.messages.projectSaveFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.projectSaveFail);
+        showMessage(errMsg, 'error');
       }
     } catch (err) {
       showMessage(`${t.messages.genericError}: ${err.message}`, 'error');
@@ -572,7 +595,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadProjectGallery(editingProjectId);
         showMessage(t.messages.projectGalleryAdded, 'success');
       } else {
-        showMessage(t.messages.projectGalleryAddFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.projectGalleryAddFail);
+        showMessage(errMsg, 'error');
       }
     } catch (err) {
       showMessage(`${t.messages.genericError}: ${err.message}`, 'error');
@@ -587,7 +611,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         if (editingProjectId) loadProjectGallery(editingProjectId);
         showMessage(t.messages.projectGalleryDeleted, 'success');
       } else {
-        showMessage(t.messages.projectGalleryDeleteFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.projectGalleryDeleteFail);
+        showMessage(errMsg, 'error');
       }
     } catch {
       showMessage(t.messages.projectGalleryDeleteFail, 'error');
@@ -609,7 +634,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
       });
 
       if (!orderRes.ok) {
-        showMessage(t.messages.projectGalleryOrderSaveFail, 'error');
+        const errMsg = await readErrorMessage(orderRes, t.messages.projectGalleryOrderSaveFail);
+        showMessage(errMsg, 'error');
         return;
       }
 
@@ -624,7 +650,9 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
       );
 
       if (layoutResults.some((res) => !res.ok)) {
-        showMessage(t.messages.projectGalleryLayoutSaveFail, 'error');
+        const failedRes = layoutResults.find((res) => !res.ok);
+        const errMsg = await readErrorMessage(failedRes, t.messages.projectGalleryLayoutSaveFail);
+        showMessage(errMsg, 'error');
         return;
       }
 
@@ -657,7 +685,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadAllData();
         showMessage(t.messages.projectDeleted, 'success');
       } else {
-        showMessage(t.messages.projectDeleteFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.projectDeleteFail);
+        showMessage(errMsg, 'error');
       }
     } catch {
       showMessage(t.messages.projectDeleteFail, 'error');
@@ -681,6 +710,9 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         setGalleryForm({ url: '' });
         loadAllData();
         showMessage(t.messages.galleryAdded, 'success');
+      } else {
+        const errMsg = await readErrorMessage(res, t.messages.genericError);
+        showMessage(errMsg, 'error');
       }
     } catch (err) {
       showMessage(`${t.messages.genericError}: ${err.message}`, 'error');
@@ -695,7 +727,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadAllData();
         showMessage(t.messages.galleryDeleted, 'success');
       } else {
-        showMessage(t.messages.galleryDeleteFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.galleryDeleteFail);
+        showMessage(errMsg, 'error');
       }
     } catch {
       showMessage(t.messages.galleryDeleteFail, 'error');
@@ -736,6 +769,9 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         if (teamImageFileRef.current) teamImageFileRef.current.value = '';
         loadAllData();
         showMessage(t.messages.teamAdded, 'success');
+      } else {
+        const errMsg = await readErrorMessage(res, t.messages.genericError);
+        showMessage(errMsg, 'error');
       }
     } catch (err) {
       showMessage(`${t.messages.genericError}: ${err.message}`, 'error');
@@ -750,7 +786,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadAllData();
         showMessage(t.messages.teamDeleted, 'success');
       } else {
-        showMessage(t.messages.teamDeleteFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.teamDeleteFail);
+        showMessage(errMsg, 'error');
       }
     } catch {
       showMessage(t.messages.teamDeleteFail, 'error');
@@ -775,6 +812,9 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         setPartnerForm({ name: '', url: '' });
         loadAllData();
         showMessage(t.messages.partnerAdded, 'success');
+      } else {
+        const errMsg = await readErrorMessage(res, t.messages.genericError);
+        showMessage(errMsg, 'error');
       }
     } catch (err) {
       showMessage(`${t.messages.genericError}: ${err.message}`, 'error');
@@ -789,7 +829,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadAllData();
         showMessage(t.messages.partnerDeleted, 'success');
       } else {
-        showMessage(t.messages.partnerDeleteFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.partnerDeleteFail);
+        showMessage(errMsg, 'error');
       }
     } catch {
       showMessage(t.messages.partnerDeleteFail, 'error');
@@ -817,6 +858,9 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         setEditingInfoId(null);
         loadAllData();
         showMessage(editingInfoId ? t.messages.infoUpdated : t.messages.infoAdded, 'success');
+      } else {
+        const errMsg = await readErrorMessage(res, t.messages.projectSaveFail);
+        showMessage(errMsg, 'error');
       }
     } catch (err) {
       showMessage(`${t.messages.genericError}: ${err.message}`, 'error');
@@ -842,7 +886,8 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         loadAllData();
         showMessage(t.messages.infoDeleted, 'success');
       } else {
-        showMessage(t.messages.infoDeleteFail, 'error');
+        const errMsg = await readErrorMessage(res, t.messages.infoDeleteFail);
+        showMessage(errMsg, 'error');
       }
     } catch {
       showMessage(t.messages.infoDeleteFail, 'error');
