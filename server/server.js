@@ -346,3 +346,137 @@ if (fs.existsSync(distPath)) {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+// ─── ONE-TIME SAFE DEMO CLEANUP ─────────────────────────────────────────────
+app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
+  const demoProjectTitles = [
+    "APEX Tower",
+    "APEX Restaurant",
+    "Durmen Villa",
+    "Nest ONE Apartment",
+    "Oxygen Apartment",
+    "Plove Lounge",
+    "Private Villa",
+    "Boulevard Apartments",
+    "Gabus Apartments",
+    "Private Villa Ext.",
+    "Gardens Residence",
+    "Cambridge Residence",
+    "Sayram Village",
+    "Private House Int.",
+    "Office Interior",
+    "Fazo Residence",
+    "Humo Arena",
+  ];
+
+  const demoTeamNames = [
+    "Aleksandra Morozova",
+    "Dmitri Volkov",
+    "Nilufar Rashidova",
+    "Ivan Petrov",
+    "Maria Kuznetsova",
+    "Timur Yusupov",
+  ];
+
+  const demoPartnerNames = [
+    "Miele",
+    "Boffi",
+    "Minotti",
+    "Poliform",
+    "Flos",
+    "Vitra",
+    "Knoll",
+    "Fritz Hansen",
+  ];
+
+  const demoInfoKeys = [
+    "email",
+    "phone",
+    "address",
+    "instagram",
+    "telegram",
+    "x",
+    "facebook",
+    "linkedin",
+  ];
+
+  const placeholders = (arr) => arr.map(() => '?').join(', ');
+
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+
+    db.run(
+      `DELETE FROM gallery
+       WHERE project_id IN (
+         SELECT id FROM projects WHERE title IN (${placeholders(demoProjectTitles)})
+       )`,
+      demoProjectTitles,
+      function (err) {
+        if (err) {
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: `Failed deleting demo gallery: ${err.message}` });
+        }
+
+        db.run(
+          `DELETE FROM projects WHERE title IN (${placeholders(demoProjectTitles)})`,
+          demoProjectTitles,
+          function (err2) {
+            if (err2) {
+              db.run('ROLLBACK');
+              return res.status(500).json({ error: `Failed deleting demo projects: ${err2.message}` });
+            }
+
+            db.run(
+              `DELETE FROM team WHERE name IN (${placeholders(demoTeamNames)})`,
+              demoTeamNames,
+              function (err3) {
+                if (err3) {
+                  db.run('ROLLBACK');
+                  return res.status(500).json({ error: `Failed deleting demo team: ${err3.message}` });
+                }
+
+                db.run(
+                  `DELETE FROM partners WHERE name IN (${placeholders(demoPartnerNames)})`,
+                  demoPartnerNames,
+                  function (err4) {
+                    if (err4) {
+                      db.run('ROLLBACK');
+                      return res.status(500).json({ error: `Failed deleting demo partners: ${err4.message}` });
+                    }
+
+                    db.run(
+                      `DELETE FROM info WHERE key IN (${placeholders(demoInfoKeys)})`,
+                      demoInfoKeys,
+                      function (err5) {
+                        if (err5) {
+                          db.run('ROLLBACK');
+                          return res.status(500).json({ error: `Failed deleting demo info: ${err5.message}` });
+                        }
+
+                        db.run('COMMIT', (err6) => {
+                          if (err6) {
+                            db.run('ROLLBACK');
+                            return res.status(500).json({ error: `Commit failed: ${err6.message}` });
+                          }
+
+                          return res.json({
+                            message: 'Demo data cleanup completed safely',
+                            deleted: {
+                              projects: demoProjectTitles.length,
+                              team: demoTeamNames.length,
+                              partners: demoPartnerNames.length,
+                              info: demoInfoKeys.length,
+                            },
+                          });
+                        });
+                      }
+                    );
+                  }
+                );
+              }
+            );
+          }
+        );
+      }
+    );
+  });
+});
