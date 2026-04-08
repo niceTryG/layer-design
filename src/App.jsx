@@ -10,7 +10,7 @@ import {
 } from "react-icons/si";
 
 // ─── API ENDPOINT ────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 // Resolve uploaded image URLs — backend stores them as /uploads/...
 // In dev the Vite proxy forwards /uploads → localhost:3001,
