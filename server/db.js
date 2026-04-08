@@ -103,9 +103,16 @@ function initializeDatabase() {
 
     // Check if tables are empty and seed with initial data
     db.get("SELECT COUNT(*) as count FROM projects", (err, row) => {
-      if (row.count === 0) {
+    if (err) {
+        console.error('Seed check error:', err.message);
+        return;
+    }
+
+    const allowSeed = process.env.SEED_DEMO_DATA === '1';
+
+    if (row.count === 0 && allowSeed) {
         seedDatabase();
-      }
+    }
     });
   });
 }
