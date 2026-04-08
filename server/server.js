@@ -37,7 +37,6 @@ initializeDatabase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'layerdesign2024';
 const sessions = new Map(); // token → expiry timestamp
 
-// Purge expired sessions every minute
 setInterval(() => {
   const now = Date.now();
   for (const [token, expiry] of sessions) {
@@ -60,16 +59,20 @@ app.post('/api/admin/login', (req, res) => {
   if (!password || typeof password !== 'string') {
     return res.status(400).json({ error: 'Password required' });
   }
-  // Constant-time comparison to prevent timing attacks
+
   const maxLen = 200;
   const provided = Buffer.from(password.padEnd(maxLen).slice(0, maxLen));
   const expected = Buffer.from(ADMIN_PASSWORD.padEnd(maxLen).slice(0, maxLen));
-  const ok = password.length === ADMIN_PASSWORD.length && crypto.timingSafeEqual(provided, expected);
+  const ok =
+    password.length === ADMIN_PASSWORD.length &&
+    crypto.timingSafeEqual(provided, expected);
+
   if (!ok) {
     return res.status(401).json({ error: 'Invalid password' });
   }
+
   const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, Date.now() + 8 * 60 * 60 * 1000); // 8 hours
+  sessions.set(token, Date.now() + 8 * 60 * 60 * 1000);
   res.json({ token });
 });
 
@@ -137,9 +140,7 @@ app.delete('/api/projects/:id', requireAuth, (req, res) => {
   });
 });
 
-// ─── GALLERY ENDPOINTS ─────
-
-// GET gallery (all images, for backwards compatibility)
+// GET gallery
 app.get('/api/gallery', (req, res) => {
   db.all('SELECT * FROM gallery ORDER BY COALESCE(NULLIF(sort_order, 0), id) ASC, id ASC', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -172,7 +173,7 @@ app.post('/api/projects/:projectId/gallery', requireAuth, upload.single('img'), 
   });
 });
 
-// Reorder gallery items for a project
+// Reorder gallery items
 app.put('/api/projects/:projectId/gallery/order', requireAuth, (req, res) => {
   const projectId = Number(req.params.projectId);
   const galleryIds = Array.isArray(req.body.galleryIds) ? req.body.galleryIds.map(Number).filter(Boolean) : [];
@@ -207,7 +208,7 @@ app.put('/api/projects/:projectId/gallery/order', requireAuth, (req, res) => {
   });
 });
 
-// UPDATE gallery image layout/url
+// UPDATE gallery image
 app.put('/api/gallery/:id', requireAuth, (req, res) => {
   const { url, layout } = req.body;
 
@@ -228,8 +229,6 @@ app.delete('/api/gallery/:id', requireAuth, (req, res) => {
     res.json({ message: 'Gallery image deleted' });
   });
 });
-
-// ─── TEAM ENDPOINTS ─────
 
 // GET team
 app.get('/api/team', (req, res) => {
@@ -262,8 +261,6 @@ app.delete('/api/team/:id', requireAuth, (req, res) => {
   });
 });
 
-// ─── PARTNERS ENDPOINTS ─────
-
 // GET partners
 app.get('/api/partners', (req, res) => {
   db.all('SELECT * FROM partners ORDER BY id', [], (err, rows) => {
@@ -289,8 +286,6 @@ app.delete('/api/partners/:id', requireAuth, (req, res) => {
     res.json({ message: 'Partner deleted' });
   });
 });
-
-// ─── INFO/SETTINGS ENDPOINTS ─────
 
 // GET all info items
 app.get('/api/info', (req, res) => {
@@ -336,8 +331,18 @@ app.delete('/api/info/:id', requireAuth, (req, res) => {
   });
 });
 
+// ─── SERVE FRONTEND IN PRODUCTION ────────────────────────────────────────────
+const distPath = path.join(__dirname, '..', 'dist');
+
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  app.get(/^\/(?!api|uploads).*/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
-  console.log(`📊 Admin dashboard available at http://localhost:5173/admin`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
