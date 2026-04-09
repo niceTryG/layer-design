@@ -27,10 +27,11 @@ The backend runs on `http://localhost:3001` with API at `http://localhost:3001/a
 Frontend uses:
 
 ```env
-VITE_API_BASE=http://localhost:3001/api
+VITE_API_BASE=/api
 ```
 
-Set this to your hosted backend URL in production.
+Use `/api` when frontend and backend are served from the same origin.
+If frontend and backend are on different hosts, set this to your backend API URL (HTTPS), e.g. `https://your-backend-domain.com/api`.
 
 ## Build
 
@@ -46,7 +47,7 @@ This repo includes `netlify.toml` with:
 - publish directory: `dist`
 - SPA redirect: `/* -> /index.html`
 
-In Netlify project settings, add environment variable:
+In Netlify project settings, add environment variable only when backend is on a different host:
 
 ```env
 VITE_API_BASE=https://your-backend-domain.com/api
@@ -63,7 +64,10 @@ PORT=3001
 ADMIN_PASSWORD=your-secure-password
 ```
 
-After backend deploy, set Netlify `VITE_API_BASE` to that API URL.
+After backend deploy:
+
+- If frontend and backend are separate hosts: set `VITE_API_BASE` to backend API URL.
+- If same host: remove `VITE_API_BASE` or set it to `/api`.
 
 ## Notes
 

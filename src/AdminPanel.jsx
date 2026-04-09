@@ -76,6 +76,7 @@ const ADMIN_I18N = {
       subtitle: 'Qisqa sarlavha',
       location: 'Joylashuv',
       style: 'Stil',
+      projectType: 'Loyiha turi',
       image: 'Asosiy rasm',
       gridSize: 'Grid o`lchami',
       gridAuto: 'Auto (aqlli)',
@@ -247,6 +248,7 @@ const ADMIN_I18N = {
       subtitle: 'Подзаголовок',
       location: 'Локация',
       style: 'Стиль',
+      projectType: 'Тип проекта',
       image: 'Главное изображение',
       gridSize: 'Размер сетки',
       gridAuto: 'Auto (умный)',
@@ -420,7 +422,7 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
   const projectGalleryFileRef = useRef(null);
   const teamImageFileRef = useRef(null);
 
-  const [projectForm, setProjectForm] = useState({ title: '', subtitle: '', location: '', style: '', img: '', grid_size: 'auto', description: '' });
+  const [projectForm, setProjectForm] = useState({ title: '', subtitle: '', location: '', style: '', project_type: '', img: '', grid_size: 'auto', description: '' });
   const [projectGalleryForm, setProjectGalleryForm] = useState({ url: '', layout: 'auto' });
   const [galleryForm, setGalleryForm] = useState({ url: '' });
   const [teamForm, setTeamForm] = useState({ name: '', role: '', img: '' });
@@ -490,14 +492,14 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
 
   const startEditProject = (project) => {
     setEditingProjectId(project.id);
-    setProjectForm({ ...project, grid_size: project.grid_size || 'auto' });
+    setProjectForm({ ...project, grid_size: project.grid_size || 'auto', project_type: project.project_type || '' });
     loadProjectGallery(project.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const cancelEditProject = () => {
     setEditingProjectId(null);
-    setProjectForm({ title: '', subtitle: '', location: '', style: '', img: '', grid_size: 'auto', description: '' });
+    setProjectForm({ title: '', subtitle: '', location: '', style: '', project_type: '', img: '', grid_size: 'auto', description: '' });
     setProjectGallery([]);
     setProjectGalleryForm({ url: '', layout: 'auto' });
   };
@@ -528,6 +530,7 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
         body.append('subtitle', projectForm.subtitle);
         body.append('location', projectForm.location);
         body.append('style', projectForm.style);
+        body.append('project_type', projectForm.project_type || '');
         body.append('grid_size', projectForm.grid_size || 'auto');
         body.append('description', projectForm.description);
         body.append('img', file);
@@ -543,7 +546,7 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
       });
 
       if (res.ok) {
-        setProjectForm({ title: '', subtitle: '', location: '', style: '', img: '', grid_size: 'auto', description: '' });
+        setProjectForm({ title: '', subtitle: '', location: '', style: '', project_type: '', img: '', grid_size: 'auto', description: '' });
         if (projectImageFileRef.current) projectImageFileRef.current.value = '';
         setEditingProjectId(null);
         loadAllData();
@@ -947,7 +950,7 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
   const filteredProjects = useMemo(() => {
     if (!search) return projects;
     const q = search.toLowerCase();
-    return projects.filter((p) => `${p.title} ${p.location} ${p.style} ${p.grid_size || ''}`.toLowerCase().includes(q));
+    return projects.filter((p) => `${p.title} ${p.location} ${p.style} ${p.project_type || ''} ${p.grid_size || ''}`.toLowerCase().includes(q));
   }, [projects, search]);
 
   const filteredGallery = useMemo(() => {
@@ -1817,6 +1820,26 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
                       <input type="text" value={projectForm.style} onChange={(e) => setProjectForm({ ...projectForm, style: e.target.value })} placeholder={t.placeholders.projectStyle} />
                     </div>
                     <div className="form-group">
+                      <label>{t.projects.projectType}</label>
+                      <input
+                        type="text"
+                        list="project-type-options"
+                        value={projectForm.project_type || ''}
+                        onChange={(e) => setProjectForm({ ...projectForm, project_type: e.target.value })}
+                        placeholder="e.g., Full Design / Bathroom / Bedroom / Shop"
+                      />
+                      <datalist id="project-type-options">
+                        <option value="Full Design" />
+                        <option value="Bathroom" />
+                        <option value="Bedroom" />
+                        <option value="Living Room" />
+                        <option value="Kitchen" />
+                        <option value="Commercial" />
+                        <option value="Shop" />
+                        <option value="Office" />
+                      </datalist>
+                    </div>
+                    <div className="form-group">
                       <label>{t.projects.image}</label>
                       <div className="file-url-row">
                         <input type="file" ref={projectImageFileRef} accept="image/*" />
@@ -2001,7 +2024,7 @@ export default function AdminPanel({ token, onLogout, onSessionExpired = onLogou
                             <img className="list-thumb" src={toImageUrl(p.img)} alt={p.title} />
                             <div className="list-text">
                               <div className="list-title">{p.title}</div>
-                              <div className="list-meta">{p.location || '-'} | {p.style || '-'} | grid: {p.grid_size || 'auto'}</div>
+                              <div className="list-meta">{p.location || '-'} | {p.style || '-'} | {p.project_type || '-'} | grid: {p.grid_size || 'auto'}</div>
                             </div>
                           </div>
                           <div className="list-actions">

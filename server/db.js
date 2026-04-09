@@ -21,6 +21,7 @@ function initializeDatabase() {
         style TEXT,
         img TEXT,
         grid_size TEXT DEFAULT 'auto',
+        project_type TEXT DEFAULT '',
         description TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -30,6 +31,12 @@ function initializeDatabase() {
     db.run("ALTER TABLE projects ADD COLUMN grid_size TEXT DEFAULT 'auto'", (err) => {
       if (err && !String(err.message).includes('duplicate column name')) {
         console.error('Migration error (grid_size):', err.message);
+      }
+    });
+
+    db.run("ALTER TABLE projects ADD COLUMN project_type TEXT DEFAULT ''", (err) => {
+      if (err && !String(err.message).includes('duplicate column name')) {
+        console.error('Migration error (project_type):', err.message);
       }
     });
 
@@ -143,8 +150,8 @@ function seedDatabase() {
   
   projects.forEach((p, index) => {
     db.run(
-      "INSERT INTO projects (title, subtitle, location, style, img, grid_size, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [p.title, p.subtitle, p.location, p.style, p.img, p.grid_size || 'auto', p.description],
+      "INSERT INTO projects (title, subtitle, location, style, img, grid_size, project_type, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [p.title, p.subtitle, p.location, p.style, p.img, p.grid_size || 'auto', p.project_type || '', p.description],
       function() { projectCount++; }
     );
   });

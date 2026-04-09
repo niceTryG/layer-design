@@ -73,6 +73,11 @@ const I18N = {
       moscow: 'Moskva, Rossiya',
       copy: '© 2021 Layer Design - Dizayn va Arxitektura',
     },
+    portfolioSearchLabel: 'Qidiruv',
+    portfolioSearchPlaceholder: 'Nomi, joylashuv, uslub yoki loyiha turi...',
+    portfolioTypeLabel: 'Loyiha turi',
+    portfolioTypeAll: 'Barchasi',
+    portfolioNoResults: 'Tanlangan filter bo‘yicha loyiha topilmadi.',
   },
   ru: {
     nav: {
@@ -116,6 +121,11 @@ const I18N = {
       moscow: 'Москва, Россия',
       copy: '© 2021 Layer Design - Дизайн и Архитектура',
     },
+    portfolioSearchLabel: 'Поиск',
+    portfolioSearchPlaceholder: 'Название, локация, стиль или тип проекта...',
+    portfolioTypeLabel: 'Тип проекта',
+    portfolioTypeAll: 'Все',
+    portfolioNoResults: 'По выбранным фильтрам проекты не найдены.',
   },
 };
 
@@ -298,19 +308,74 @@ const css = `
   .pgrid-wrap { padding: 0 70px; }
 
   /* Responsive editable grid driven by project.grid_size */
-  .pgrid {
+  .pfilters {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
+    gap: 10px;
+    margin: 16px 0 14px;
+  }
+
+  .pfilter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .pfilter-label {
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gd);
+  }
+
+  .pfilter-input {
+    width: 100%;
+    border: 1px solid var(--gm);
+    background: #fff;
+    color: var(--b);
+    padding: 12px 13px;
+    font-size: 13px;
+    font-family: var(--sans);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .pfilter-input:focus {
+    border-color: var(--b);
+  }
+
+  .pgrid {
+    display: flex;
+    flex-direction: column;
     gap: 14px;
     padding-bottom: 14px;
+  }
+
+  .prow {
+    display: flex;
+    gap: 14px;
+  }
+
+  .prow.pair-reverse {
+    flex-direction: row-reverse;
+  }
+
+  .prow.single .pcard {
+    flex: 1 1 100%;
+    max-width: 100%;
   }
 
   .pcard {
     position: relative; overflow: hidden; cursor: pointer;
     background: var(--gl);
     height: clamp(280px, 29vw, 520px);
-    grid-column: span 6;
+    flex: 1 1 0;
+    min-width: 0;
   }
+
+  .pcard.size-small { flex-basis: calc(40% - 7px); max-width: calc(40% - 7px); }
+  .pcard.size-large { flex-basis: calc(60% - 7px); max-width: calc(60% - 7px); }
 
   .pcard-ani {
     opacity: 0;
@@ -325,23 +390,14 @@ const css = `
     }
   }
 
-  .pcard.grid-wide {
-    grid-column: span 8;
-    height: clamp(300px, 30vw, 560px);
-  }
+  .pcard.grid-wide { height: clamp(300px, 30vw, 560px); }
 
   .pcard.grid-tall {
-    grid-column: span 4;
     height: clamp(340px, 38vw, 640px);
   }
 
-  .pcard.grid-normal {
-    grid-column: span 6;
-  }
-
-  .pcard.grid-auto {
-    grid-column: span 6;
-  }
+  .pcard.grid-normal {}
+  .pcard.grid-auto {}
 
   .pcard img {
     width: 100%; height: 100%; object-fit: cover;
@@ -360,6 +416,16 @@ const css = `
   .pcard:hover .pov { background: rgba(0,0,0,0.18); }
   .pt { font-family: var(--serif); font-size: clamp(20px, 2.4vw, 42px); font-weight: 400; color: #fff; letter-spacing: 0.05em; }
   .ps { font-size: 11px; font-weight: 300; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255,255,255,0.72); margin-top: 10px; }
+
+  .pempty {
+    border: 1px solid var(--gm);
+    color: var(--gd);
+    padding: 32px 20px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
 
   /* ── SCROLL FADE ── */
   .fi { opacity: 0; transform: translateY(20px); transition: opacity 0.7s ease, transform 0.7s ease; }
@@ -567,12 +633,12 @@ const css = `
     .sh-links { display: none; }
     .sh-burg { display: flex; }
     .pgrid-wrap { padding: 0 20px; }
-    .pgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .pfilters { grid-template-columns: 1fr; }
     .pcard,
     .pcard.grid-normal,
-    .pcard.grid-auto { grid-column: span 3; height: clamp(220px, 42vw, 420px); }
-    .pcard.grid-wide { grid-column: span 6; height: clamp(240px, 44vw, 450px); }
-    .pcard.grid-tall { grid-column: span 3; height: clamp(280px, 56vw, 520px); }
+    .pcard.grid-auto { height: clamp(220px, 42vw, 420px); }
+    .pcard.grid-wide { height: clamp(240px, 44vw, 450px); }
+    .pcard.grid-tall { height: clamp(280px, 56vw, 520px); }
     .dhero-wrap { padding: 16px 20px 0; }
     .dhero { height: clamp(290px, 56vw, 520px); }
     .dinfo-wrap { padding: 0 20px; }
@@ -594,13 +660,16 @@ const css = `
     .isub { font-size: 11px; letter-spacing: 0.2em; }
     .hero-tagline { font-size: 11px; letter-spacing: 0.16em; }
     .pgrid-wrap { padding: 0 12px; }
-    .pgrid { grid-template-columns: 1fr; }
+    .pfilters { grid-template-columns: 1fr; }
+    .prow,
+    .prow.pair-reverse { flex-direction: column; }
     .pcard,
     .pcard.grid-normal,
     .pcard.grid-wide,
     .pcard.grid-tall,
     .pcard.grid-auto {
-      grid-column: 1 / -1;
+      flex-basis: 100%;
+      max-width: 100%;
       height: 62vw;
       min-height: 250px;
     }
@@ -880,6 +949,36 @@ function Footer({ t, onSecretAdmin, info = [] }) {
 
 function PortfolioPage({ setPage, setProject, projects, t, lang, setLang, onSecretAdmin, info }) {
   const ref = useFade();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState('all');
+
+  const projectTypes = useMemo(() => {
+    const set = new Set();
+    (projects || []).forEach((project) => {
+      const raw = String(project?.project_type || '').trim();
+      if (raw) set.add(raw);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [projects]);
+
+  const filteredProjects = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return (projects || []).filter((project) => {
+      const matchesType = selectedType === 'all' || String(project?.project_type || '') === selectedType;
+      if (!matchesType) return false;
+      if (!q) return true;
+      const haystack = `${project?.title || ''} ${project?.subtitle || ''} ${project?.location || ''} ${project?.style || ''} ${project?.project_type || ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [projects, searchQuery, selectedType]);
+
+  const projectRows = useMemo(() => {
+    const rows = [];
+    for (let i = 0; i < filteredProjects.length; i += 2) {
+      rows.push(filteredProjects.slice(i, i + 2));
+    }
+    return rows;
+  }, [filteredProjects]);
 
   const normalizeGridSize = (project, index) => {
     const valid = ['normal', 'wide', 'tall', 'auto'];
@@ -895,24 +994,55 @@ function PortfolioPage({ setPage, setProject, projects, t, lang, setLang, onSecr
       <Hero t={t} />
       <SiteHeader page="portfolio" setPage={setPage} t={t} lang={lang} setLang={setLang} />
       <div id="portfolio" className="pgrid-wrap">
+        <div className="pfilters">
+          <div className="pfilter-group">
+            <label className="pfilter-label">{t.portfolioSearchLabel}</label>
+            <input
+              className="pfilter-input"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t.portfolioSearchPlaceholder}
+            />
+          </div>
+          <div className="pfilter-group">
+            <label className="pfilter-label">{t.portfolioTypeLabel}</label>
+            <select
+              className="pfilter-input"
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+            >
+              <option value="all">{t.portfolioTypeAll}</option>
+              {projectTypes.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          </div>
+        </div>
         <div className="pgrid">
-          {projects.map((p, idx) => {
-            const gridSize = normalizeGridSize(p, idx);
-            return (
-              <div
-                key={p.id}
-                className={`pcard pcard-ani grid-${gridSize}`}
-                style={{ animationDelay: `${Math.min(idx * 55, 520)}ms` }}
-                onClick={() => { setProject(p); setPage("detail"); window.scrollTo(0, 0); }}
-              >
-                <img src={imgUrl(p.img)} alt={p.title} loading="lazy" />
-                <div className="pov">
-                  <div className="pt">{p.title}</div>
-                  <div className="ps">{p.subtitle}</div>
-                </div>
-              </div>
-            );
-          })}
+          {projectRows.map((row, rowIndex) => (
+            <div key={`row-${rowIndex}`} className={`prow ${row.length === 1 ? 'single' : ''} ${rowIndex % 2 === 1 ? 'pair-reverse' : ''}`}>
+              {row.map((p, cardIndex) => {
+                const gridSize = normalizeGridSize(p, rowIndex * 2 + cardIndex);
+                const widthClass = gridSize === 'wide' ? 'size-large' : gridSize === 'normal' ? 'size-small' : cardIndex === 0 ? 'size-small' : 'size-large';
+                return (
+                  <div
+                    key={p.id}
+                    className={`pcard pcard-ani grid-${gridSize} ${widthClass}`}
+                    style={{ animationDelay: `${Math.min((rowIndex * 2 + cardIndex) * 55, 520)}ms` }}
+                    onClick={() => { setProject(p); setPage("detail"); window.scrollTo(0, 0); }}
+                  >
+                    <img src={imgUrl(p.img)} alt={p.title} loading="lazy" />
+                    <div className="pov">
+                      <div className="pt">{p.title}</div>
+                      <div className="ps">{p.subtitle}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          {projectRows.length === 0 && <div className="pempty">{t.portfolioNoResults}</div>}
         </div>
       </div>
       <Footer t={t} onSecretAdmin={onSecretAdmin} info={info} />
@@ -1423,7 +1553,7 @@ export default function App() {
   const openAdmin = () => setPage('admin');
 
   // Secret admin entry points:
-  // 1) Keyboard: Ctrl+Shift+A
+  // 1) Keyboard: Ctrl+Alt+M
   // 2) URL: ?admin=1 or #admin
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1434,7 +1564,7 @@ export default function App() {
     }
 
     const onKeyDown = (e) => {
-      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+      if (e.ctrlKey && e.altKey && (e.key === 'M' || e.key === 'm')) {
         e.preventDefault();
         setPage('admin');
       }

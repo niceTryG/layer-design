@@ -104,30 +104,30 @@ app.get('/api/projects/:id', (req, res) => {
 
 // POST new project
 app.post('/api/projects', requireAuth, upload.single('img'), (req, res) => {
-  const { title, subtitle, location, style, description, grid_size } = req.body;
+  const { title, subtitle, location, style, description, grid_size, project_type } = req.body;
   const img = req.file ? `/uploads/${req.file.filename}` : (req.body.img || req.body.img_url);
 
   db.run(
-    'INSERT INTO projects (title, subtitle, location, style, img, grid_size, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [title, subtitle, location, style, img, grid_size || 'auto', description],
+    'INSERT INTO projects (title, subtitle, location, style, img, grid_size, project_type, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [title, subtitle, location, style, img, grid_size || 'auto', project_type || '', description],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, title, subtitle, location, style, img, grid_size: grid_size || 'auto', description });
+      res.json({ id: this.lastID, title, subtitle, location, style, img, grid_size: grid_size || 'auto', project_type: project_type || '', description });
     }
   );
 });
 
 // UPDATE project
 app.put('/api/projects/:id', requireAuth, upload.single('img'), (req, res) => {
-  const { title, subtitle, location, style, description, grid_size } = req.body;
+  const { title, subtitle, location, style, description, grid_size, project_type } = req.body;
   const img = req.file ? `/uploads/${req.file.filename}` : req.body.img;
 
   db.run(
-    'UPDATE projects SET title = ?, subtitle = ?, location = ?, style = ?, img = ?, grid_size = ?, description = ? WHERE id = ?',
-    [title, subtitle, location, style, img, grid_size || 'auto', description, req.params.id],
+    'UPDATE projects SET title = ?, subtitle = ?, location = ?, style = ?, img = ?, grid_size = ?, project_type = ?, description = ? WHERE id = ?',
+    [title, subtitle, location, style, img, grid_size || 'auto', project_type || '', description, req.params.id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: req.params.id, title, subtitle, location, style, img, grid_size: grid_size || 'auto', description });
+      res.json({ id: req.params.id, title, subtitle, location, style, img, grid_size: grid_size || 'auto', project_type: project_type || '', description });
     }
   );
 });
