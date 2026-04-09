@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import AdminPanel from "./AdminPanel";
 import { BiLogoLinkedin } from "react-icons/bi";
 import {
@@ -555,6 +555,13 @@ const css = `
   footer { padding: 52px 48px; border-top: 1px solid var(--gm); display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 28px; align-items: start; }
   .flogo { display: inline-flex; align-items: center; }
 
+  .footer-logo-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+  }
+
   .logo-img { display: block; width: auto; height: 100%; object-fit: contain; }
   .logo-intro { height: clamp(40px, 5vw, 68px); }
   .logo-header { width: 220px; height: auto; }
@@ -608,22 +615,6 @@ const css = `
     height: 220px;
     border: 0;
     display: block;
-  }
-  .secret-admin-btn {
-    width: 12px;
-    height: 12px;
-    border: 1px solid #cfcfcf;
-    background: transparent;
-    opacity: 0.18;
-    border-radius: 50%;
-    cursor: pointer;
-    justify-self: end;
-    margin-top: 6px;
-    transition: opacity 0.2s ease, border-color 0.2s ease;
-  }
-  .secret-admin-btn:hover {
-    opacity: 0.55;
-    border-color: #8d8d8d;
   }
 
   /* ── RESPONSIVE ── */
@@ -909,7 +900,17 @@ function Footer({ t, onSecretAdmin, info = [] }) {
 
   return (
     <footer>
-      <div><div className="flogo"><img className="logo-img logo-footer" src={LOGO_SRC} alt="Layer Design" /></div></div>
+      <div>
+        <button
+          type="button"
+          className="footer-logo-btn"
+          onClick={onSecretAdmin}
+          aria-label="Admin login"
+          title="Admin login"
+        >
+          <div className="flogo"><img className="logo-img logo-footer" src={LOGO_SRC} alt="Layer Design" /></div>
+        </button>
+      </div>
       <div>
         <div className="fcity">{city}</div>
         <div className="fadr">
@@ -932,13 +933,6 @@ function Footer({ t, onSecretAdmin, info = [] }) {
         </div>
       </div>
       <div className="fcopy">{t.footer.copy}</div>
-      <button
-        type="button"
-        className="secret-admin-btn"
-        onClick={onSecretAdmin}
-        aria-label="Admin"
-        title="Admin"
-      />
       <div className="fmap-wrap">
         <div className="fmap-label">Coordinates Live Preview</div>
         <iframe className="fmap" src={mapSrc} loading="lazy" title="Office map preview" />
@@ -1553,7 +1547,7 @@ export default function App() {
   const openAdmin = () => setPage('admin');
 
   // Secret admin entry points:
-  // 1) Keyboard: Ctrl+Alt+M
+  // 1) Keyboard: Ctrl+Shift+#
   // 2) URL: ?admin=1 or #admin
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1564,7 +1558,8 @@ export default function App() {
     }
 
     const onKeyDown = (e) => {
-      if (e.ctrlKey && e.altKey && (e.key === 'M' || e.key === 'm')) {
+      const isHashCombo = e.ctrlKey && e.shiftKey && (e.key === '#' || e.code === 'Digit3');
+      if (isHashCombo) {
         e.preventDefault();
         setPage('admin');
       }
