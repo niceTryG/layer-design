@@ -1398,13 +1398,18 @@ function AdminLoginPage({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw }),
       });
-      if (res.ok) {
-        const { token } = await res.json();
-        onLogin(token);
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Incorrect password');
+      } else if (!data.token) {
+        setError('Login succeeded but token missing');
       } else {
-        setError('Incorrect password');
+        onLogin(data.token);
       }
-    } catch {
+    } catch (err) {
+      console.error('Login error:', err);
       setError('Cannot connect to server');
     }
     setLoading(false);
