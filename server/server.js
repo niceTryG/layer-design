@@ -34,7 +34,10 @@ app.use('/uploads', express.static(uploadDir));
 initializeDatabase();
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'layerdesign2024';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  throw new Error("ADMIN_PASSWORD environment variable is required");
+}
 const sessions = new Map(); // token → expiry timestamp
 
 setInterval(() => {
