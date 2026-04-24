@@ -5,6 +5,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { v2: cloudinary } = require('cloudinary');
+const streamifier = require('streamifier');
 const { db, initializeDatabase } = require('./db');
 
 const app = express();
@@ -15,30 +17,39 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Setup multer for file uploads
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+// ─── CLOUDINARY UPLOADS ──────────────────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-const upload = multer({ storage });
 
-// Serve uploaded files
-app.use('/uploads', express.static(uploadDir));
+const upload = multer({ storage: multer.memoryStorage() });
+
+function uploadToCloudinary(fileBuffer, folder = 'layer-design') {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'image' },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      }
+    );
+
+    streamifier.createReadStream(fileBuffer).pipe(stream);
+  });
+}
 
 // Initialize database
 initializeDatabase();
 
-// ─── AUTH ──────────────────────────────────────────────────────────────────────
+// ─── AUTH ────────────────────────────────────────────────────────────────────
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 if (!ADMIN_PASSWORD) {
   throw new Error("ADMIN_PASSWORD environment variable is required");
 }
-const sessions = new Map(); // token → expiry timestamp
+
+const sessions = new Map();
 
 setInterval(() => {
   const now = Date.now();
@@ -50,15 +61,18 @@ setInterval(() => {
 function requireAuth(req, res, next) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+
   if (!token || !sessions.has(token) || Date.now() > sessions.get(token)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+
   next();
 }
 
 // POST /api/admin/login
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body;
+
   if (!password || typeof password !== 'string') {
     return res.status(400).json({ error: 'Password required' });
   }
@@ -66,6 +80,7 @@ app.post('/api/admin/login', (req, res) => {
   const maxLen = 200;
   const provided = Buffer.from(password.padEnd(maxLen).slice(0, maxLen));
   const expected = Buffer.from(ADMIN_PASSWORD.padEnd(maxLen).slice(0, maxLen));
+
   const ok =
     password.length === ADMIN_PASSWORD.length &&
     crypto.timingSafeEqual(provided, expected);
@@ -76,6 +91,7 @@ app.post('/api/admin/login', (req, res) => {
 
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, Date.now() + 8 * 60 * 60 * 1000);
+
   res.json({ token });
 });
 
@@ -83,11 +99,13 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/admin/logout', (req, res) => {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+
   if (token) sessions.delete(token);
+
   res.json({ message: 'Logged out' });
 });
 
-// ─── API ENDPOINTS ─────────────────────────────────────────────
+// ─── PROJECTS ────────────────────────────────────────────────────────────────
 
 // GET all projects
 app.get('/api/projects', (req, res) => {
@@ -106,33 +124,71 @@ app.get('/api/projects/:id', (req, res) => {
 });
 
 // POST new project
-app.post('/api/projects', requireAuth, upload.single('img'), (req, res) => {
-  const { title, subtitle, location, style, description, grid_size, project_type } = req.body;
-  const img = req.file ? `/uploads/${req.file.filename}` : (req.body.img || req.body.img_url);
+app.post('/api/projects', requireAuth, upload.single('img'), async (req, res) => {
+  try {
+    const { title, subtitle, location, style, description, grid_size, project_type } = req.body;
 
-  db.run(
-    'INSERT INTO projects (title, subtitle, location, style, img, grid_size, project_type, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [title, subtitle, location, style, img, grid_size || 'auto', project_type || '', description],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, title, subtitle, location, style, img, grid_size: grid_size || 'auto', project_type: project_type || '', description });
-    }
-  );
+    const img = req.file
+      ? await uploadToCloudinary(req.file.buffer, 'layer-design/projects')
+      : (req.body.img || req.body.img_url || '');
+
+    db.run(
+      'INSERT INTO projects (title, subtitle, location, style, img, grid_size, project_type, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, subtitle, location, style, img, grid_size || 'auto', project_type || '', description || ''],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        res.json({
+          id: this.lastID,
+          title,
+          subtitle,
+          location,
+          style,
+          img,
+          grid_size: grid_size || 'auto',
+          project_type: project_type || '',
+          description: description || '',
+        });
+      }
+    );
+  } catch (err) {
+    console.error('Cloudinary project upload error:', err);
+    res.status(500).json({ error: 'Image upload failed' });
+  }
 });
 
 // UPDATE project
-app.put('/api/projects/:id', requireAuth, upload.single('img'), (req, res) => {
-  const { title, subtitle, location, style, description, grid_size, project_type } = req.body;
-  const img = req.file ? `/uploads/${req.file.filename}` : req.body.img;
+app.put('/api/projects/:id', requireAuth, upload.single('img'), async (req, res) => {
+  try {
+    const { title, subtitle, location, style, description, grid_size, project_type } = req.body;
 
-  db.run(
-    'UPDATE projects SET title = ?, subtitle = ?, location = ?, style = ?, img = ?, grid_size = ?, project_type = ?, description = ? WHERE id = ?',
-    [title, subtitle, location, style, img, grid_size || 'auto', project_type || '', description, req.params.id],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: req.params.id, title, subtitle, location, style, img, grid_size: grid_size || 'auto', project_type: project_type || '', description });
-    }
-  );
+    const img = req.file
+      ? await uploadToCloudinary(req.file.buffer, 'layer-design/projects')
+      : (req.body.img || '');
+
+    db.run(
+      'UPDATE projects SET title = ?, subtitle = ?, location = ?, style = ?, img = ?, grid_size = ?, project_type = ?, description = ? WHERE id = ?',
+      [title, subtitle, location, style, img, grid_size || 'auto', project_type || '', description || '', req.params.id],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        res.json({
+          id: req.params.id,
+          title,
+          subtitle,
+          location,
+          style,
+          img,
+          grid_size: grid_size || 'auto',
+          project_type: project_type || '',
+          description: description || '',
+        });
+      }
+    );
+  } catch (err) {
+    console.error('Cloudinary project update error:', err);
+    res.status(500).json({ error: 'Image upload failed' });
+  }
 });
 
 // DELETE project
@@ -142,6 +198,8 @@ app.delete('/api/projects/:id', requireAuth, (req, res) => {
     res.json({ message: 'Project deleted' });
   });
 });
+
+// ─── GALLERY ─────────────────────────────────────────────────────────────────
 
 // GET gallery
 app.get('/api/gallery', (req, res) => {
@@ -153,33 +211,63 @@ app.get('/api/gallery', (req, res) => {
 
 // GET gallery for specific project
 app.get('/api/projects/:projectId/gallery', (req, res) => {
-  db.all('SELECT * FROM gallery WHERE project_id = ? ORDER BY COALESCE(NULLIF(sort_order, 0), id) ASC, id ASC', [req.params.projectId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows || []);
-  });
+  db.all(
+    'SELECT * FROM gallery WHERE project_id = ? ORDER BY COALESCE(NULLIF(sort_order, 0), id) ASC, id ASC',
+    [req.params.projectId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows || []);
+    }
+  );
 });
 
 // POST gallery image to specific project
-app.post('/api/projects/:projectId/gallery', requireAuth, upload.single('img'), (req, res) => {
-  const url = req.file ? `/uploads/${req.file.filename}` : req.body.url;
-  const projectId = req.params.projectId;
-  const layout = req.body.layout || 'auto';
+app.post('/api/projects/:projectId/gallery', requireAuth, upload.single('img'), async (req, res) => {
+  try {
+    const url = req.file
+      ? await uploadToCloudinary(req.file.buffer, 'layer-design/gallery')
+      : (req.body.url || '');
 
-  db.get('SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM gallery WHERE project_id = ?', [projectId], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    const nextOrder = (row?.max_order || 0) + 1;
+    const projectId = req.params.projectId;
+    const layout = req.body.layout || 'auto';
 
-    db.run('INSERT INTO gallery (project_id, url, layout, sort_order) VALUES (?, ?, ?, ?)', [projectId, url, layout, nextOrder], function(insertErr) {
-      if (insertErr) return res.status(500).json({ error: insertErr.message });
-      res.json({ id: this.lastID, project_id: projectId, url, layout, sort_order: nextOrder });
-    });
-  });
+    db.get(
+      'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM gallery WHERE project_id = ?',
+      [projectId],
+      (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const nextOrder = (row?.max_order || 0) + 1;
+
+        db.run(
+          'INSERT INTO gallery (project_id, url, layout, sort_order) VALUES (?, ?, ?, ?)',
+          [projectId, url, layout, nextOrder],
+          function(insertErr) {
+            if (insertErr) return res.status(500).json({ error: insertErr.message });
+
+            res.json({
+              id: this.lastID,
+              project_id: projectId,
+              url,
+              layout,
+              sort_order: nextOrder,
+            });
+          }
+        );
+      }
+    );
+  } catch (err) {
+    console.error('Cloudinary gallery upload error:', err);
+    res.status(500).json({ error: 'Image upload failed' });
+  }
 });
 
 // Reorder gallery items
 app.put('/api/projects/:projectId/gallery/order', requireAuth, (req, res) => {
   const projectId = Number(req.params.projectId);
-  const galleryIds = Array.isArray(req.body.galleryIds) ? req.body.galleryIds.map(Number).filter(Boolean) : [];
+  const galleryIds = Array.isArray(req.body.galleryIds)
+    ? req.body.galleryIds.map(Number).filter(Boolean)
+    : [];
 
   if (!galleryIds.length) {
     return res.status(400).json({ error: 'galleryIds array required' });
@@ -189,6 +277,7 @@ app.put('/api/projects/:projectId/gallery/order', requireAuth, (req, res) => {
     db.run('BEGIN TRANSACTION');
 
     let failed = false;
+
     galleryIds.forEach((id, index) => {
       db.run(
         'UPDATE gallery SET sort_order = ? WHERE id = ? AND project_id = ?',
@@ -206,6 +295,7 @@ app.put('/api/projects/:projectId/gallery/order', requireAuth, (req, res) => {
       if (failed || err) {
         return res.status(500).json({ error: 'Failed to save gallery order' });
       }
+
       res.json({ message: 'Gallery order updated' });
     });
   });
@@ -233,6 +323,8 @@ app.delete('/api/gallery/:id', requireAuth, (req, res) => {
   });
 });
 
+// ─── TEAM ────────────────────────────────────────────────────────────────────
+
 // GET team
 app.get('/api/team', (req, res) => {
   db.all('SELECT * FROM team ORDER BY id DESC', [], (err, rows) => {
@@ -242,18 +334,26 @@ app.get('/api/team', (req, res) => {
 });
 
 // POST team member
-app.post('/api/team', requireAuth, upload.single('img'), (req, res) => {
-  const { name, role } = req.body;
-  const img = req.file ? `/uploads/${req.file.filename}` : (req.body.img || req.body.img_url);
+app.post('/api/team', requireAuth, upload.single('img'), async (req, res) => {
+  try {
+    const { name, role } = req.body;
 
-  db.run(
-    'INSERT INTO team (name, role, img) VALUES (?, ?, ?)',
-    [name, role, img],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, name, role, img });
-    }
-  );
+    const img = req.file
+      ? await uploadToCloudinary(req.file.buffer, 'layer-design/team')
+      : (req.body.img || req.body.img_url || '');
+
+    db.run(
+      'INSERT INTO team (name, role, img) VALUES (?, ?, ?)',
+      [name, role, img],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ id: this.lastID, name, role, img });
+      }
+    );
+  } catch (err) {
+    console.error('Cloudinary team upload error:', err);
+    res.status(500).json({ error: 'Image upload failed' });
+  }
 });
 
 // DELETE team member
@@ -263,6 +363,8 @@ app.delete('/api/team/:id', requireAuth, (req, res) => {
     res.json({ message: 'Team member deleted' });
   });
 });
+
+// ─── PARTNERS ────────────────────────────────────────────────────────────────
 
 // GET partners
 app.get('/api/partners', (req, res) => {
@@ -289,6 +391,8 @@ app.delete('/api/partners/:id', requireAuth, (req, res) => {
     res.json({ message: 'Partner deleted' });
   });
 });
+
+// ─── INFO ────────────────────────────────────────────────────────────────────
 
 // GET all info items
 app.get('/api/info', (req, res) => {
@@ -334,22 +438,7 @@ app.delete('/api/info/:id', requireAuth, (req, res) => {
   });
 });
 
-// ─── SERVE FRONTEND IN PRODUCTION ────────────────────────────────────────────
-const distPath = path.join(__dirname, '..', 'dist');
-
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-
-  app.get(/^\/(?!api|uploads).*/, (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
-// ─── ONE-TIME SAFE DEMO CLEANUP ─────────────────────────────────────────────
+// ─── ONE-TIME SAFE DEMO CLEANUP ──────────────────────────────────────────────
 app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
   const demoProjectTitles = [
     "APEX Tower",
@@ -413,7 +502,7 @@ app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
          SELECT id FROM projects WHERE title IN (${placeholders(demoProjectTitles)})
        )`,
       demoProjectTitles,
-      function (err) {
+      function(err) {
         if (err) {
           db.run('ROLLBACK');
           return res.status(500).json({ error: `Failed deleting demo gallery: ${err.message}` });
@@ -422,7 +511,7 @@ app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
         db.run(
           `DELETE FROM projects WHERE title IN (${placeholders(demoProjectTitles)})`,
           demoProjectTitles,
-          function (err2) {
+          function(err2) {
             if (err2) {
               db.run('ROLLBACK');
               return res.status(500).json({ error: `Failed deleting demo projects: ${err2.message}` });
@@ -431,7 +520,7 @@ app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
             db.run(
               `DELETE FROM team WHERE name IN (${placeholders(demoTeamNames)})`,
               demoTeamNames,
-              function (err3) {
+              function(err3) {
                 if (err3) {
                   db.run('ROLLBACK');
                   return res.status(500).json({ error: `Failed deleting demo team: ${err3.message}` });
@@ -440,7 +529,7 @@ app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
                 db.run(
                   `DELETE FROM partners WHERE name IN (${placeholders(demoPartnerNames)})`,
                   demoPartnerNames,
-                  function (err4) {
+                  function(err4) {
                     if (err4) {
                       db.run('ROLLBACK');
                       return res.status(500).json({ error: `Failed deleting demo partners: ${err4.message}` });
@@ -449,7 +538,7 @@ app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
                     db.run(
                       `DELETE FROM info WHERE key IN (${placeholders(demoInfoKeys)})`,
                       demoInfoKeys,
-                      function (err5) {
+                      function(err5) {
                         if (err5) {
                           db.run('ROLLBACK');
                           return res.status(500).json({ error: `Failed deleting demo info: ${err5.message}` });
@@ -482,4 +571,20 @@ app.post('/api/admin/cleanup-demo-data', requireAuth, (req, res) => {
       }
     );
   });
+});
+
+// ─── SERVE FRONTEND IN PRODUCTION ────────────────────────────────────────────
+const distPath = path.join(__dirname, '..', 'dist');
+
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
