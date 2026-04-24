@@ -1107,18 +1107,7 @@ function DetailPage({ project, setPage, setProject, projects, gallery, t, lang, 
   ];
   
   // Add project image variations if it's a URL
-  if (projectImgBase && projectImgBase.includes('http')) {
-    const v1 = projectImgBase.includes('?') 
-      ? projectImgBase.replace(/w=\d+/, 'w=1500')
-      : projectImgBase + '?w=1500&q=80';
-    const v2 = projectImgBase.includes('?')
-      ? projectImgBase.replace(/w=\d+/, 'w=1200').replace(/h=\d+|$/, '&h=1700')
-      : projectImgBase + '?w=1200&h=1700&q=80';
-    galleryImages.push(
-      { id: `${project.id}-v1`, url: v1, layout: 'auto' },
-      { id: `${project.id}-v2`, url: v2, layout: 'auto' }
-    );
-  }
+  
 
   console.log('Total gallery images:', galleryImages.length);
 
