@@ -10,7 +10,7 @@ import {
 } from "react-icons/si";
 
 // ─── API ENDPOINT ────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Resolve uploaded image URLs — backend stores them as /uploads/...
 // In dev the Vite proxy forwards /uploads → localhost:3001,
@@ -1474,7 +1474,7 @@ export default function App() {
     localStorage.setItem('layer_lang', nextLang);
   };
 
-  // Refresh data function
+ // Refresh data function
   const refreshData = async () => {
     try {
       const [pRes, gRes, tRes, paRes, iRes] = await Promise.all([
