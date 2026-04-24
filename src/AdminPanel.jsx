@@ -8,7 +8,7 @@ import {
   SiYoutube,
 } from 'react-icons/si';
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const BACKEND_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 const toImageUrl = (src) => {
